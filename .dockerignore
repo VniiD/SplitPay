@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.git/
+.env
+.env.*
+*.user
+*.suo
+README.md
+SplitPayment-Architecture.pdf

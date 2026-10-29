@@ -1,0 +1,59 @@
+@page "/pos/recibo/{SaleId:guid}"
+@layout PosLayout
+@inject PosApi Api
+@implements IDisposable
+
+<PageTitle>SplitPay POS | Recibo</PageTitle>
+
+<h1>Comprovante</h1>
+<div class="btn-row mt no-print">
+    <button type="button" class="chip @(_via == ReceiptVia.Customer ? "is-selected" : null)" @onclick="() => LoadAsync(ReceiptVia.Customer)">Via do cliente</button>
+    <button type="button" class="chip @(_via == ReceiptVia.Merchant ? "is-selected" : null)" @onclick="() => LoadAsync(ReceiptVia.Merchant)">Via do estabelecimento</button>
+    <button type="button" class="chip" onclick="window.print()">Imprimir</button>
+    <a class="chip" href="/pos/extrato">Voltar ao extrato</a>
+</div>
+<div class="mt">
+    @if (_error is not null)
+    {
+        <div class="alert" role="alert">@_error</div>
+    }
+    else if (_receipt is not null)
+    {
+        <ReceiptView Receipt="_receipt" />
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private Receipt? _receipt;
+    private ReceiptVia _via = ReceiptVia.Customer;
+    private string? _error;
+
+    [Parameter] public Guid SaleId { get; set; }
+
+    protected override Task OnParametersSetAsync() => LoadAsync(_via);
+
+    private async Task LoadAsync(ReceiptVia via)
+    {
+        _via = via;
+        try
+        {
+            _receipt = await Api.GetReceiptAsync(SaleId, via, _cts.Token);
+            _error = null;
+        }
+        catch (PosApiException exception)
+        {
+            _error = exception.Message;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            _error = "API indisponível no momento.";
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

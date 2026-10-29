@@ -1,0 +1,112 @@
+@page "/"
+@layout PosLayout
+@inject PosApi Api
+@implements IDisposable
+
+<PageTitle>SplitPay POS | Início</PageTitle>
+
+<section class="pos-hero" aria-labelledby="hero-title">
+    <div>
+        <div class="pos-eyebrow">Mercado Boa Vista · TERM-0001</div>
+        <h1 id="hero-title">Cobre, divida e acompanhe<br />em um só toque.</h1>
+        <p>Pix, débito, crédito parcelado e vales com split payment aplicado a cada venda e comprovante completo para o cliente e para o estabelecimento.</p>
+        <div class="btn-row">
+            <a class="btn" href="/pos/venda">Nova venda</a>
+            <a class="btn secondary" href="/pos/extrato">Ver extrato</a>
+        </div>
+    </div>
+    <div class="pos-card" aria-live="polite">
+        <h2>Saúde financeira do comércio</h2>
+        @if (_error is not null)
+        {
+            <div class="alert">@_error</div>
+        }
+        else if (_health is null)
+        {
+            <p class="note">Carregando indicadores…</p>
+        }
+        else
+        {
+            <span class="health-pill @HealthClass(_health.Status)">@_health.Headline</span>
+            <div class="grid-3 spaced">
+                <div class="kpi"><small>Hoje</small><strong>@_health.GrossToday</strong></div>
+                <div class="kpi"><small>No mês</small><strong>@_health.GrossMonth</strong></div>
+                <div class="kpi"><small>A receber (30 dias)</small><strong>@_health.ReceivablesNext30Days</strong></div>
+            </div>
+            @if (_health.ApprovedCountMonth == 0)
+            {
+                <p class="note">Ainda não há vendas. <button type="button" class="chip" @onclick="SeedAsync" disabled="@_busy">Carregar 28 dias de histórico demo</button></p>
+            }
+            <p class="link-row"><a class="link-accent" href="/pos/saude">Abrir gestor financeiro →</a></p>
+        }
+    </div>
+</section>
+
+<h2 class="row-title">Cobrar <small>escolha a forma de pagamento</small></h2>
+<div class="tiles">
+    <a class="tile" href="/pos/venda?metodo=Pix"><span class="tile-icon" aria-hidden="true">◈</span><div><strong>Pix</strong><span class="sub">QR Code e copia e cola</span></div></a>
+    <a class="tile" href="/pos/venda?metodo=Credit"><span class="tile-icon" aria-hidden="true">▭</span><div><strong>Crédito</strong><span class="sub">À vista ou até 12x</span></div></a>
+    <a class="tile" href="/pos/venda?metodo=Debit"><span class="tile-icon" aria-hidden="true">▬</span><div><strong>Débito</strong><span class="sub">Recebe em D+1</span></div></a>
+    <a class="tile" href="/pos/venda?metodo=MealVoucher"><span class="tile-icon" aria-hidden="true">✦</span><div><strong>Vale-refeição</strong><span class="sub">VR</span></div></a>
+    <a class="tile" href="/pos/venda?metodo=FoodVoucher"><span class="tile-icon" aria-hidden="true">❖</span><div><strong>Vale-alimentação</strong><span class="sub">VA</span></div></a>
+</div>
+
+<h2 class="row-title">Gestão <small>acompanhe o negócio</small></h2>
+<div class="tiles">
+    <a class="tile" href="/pos/extrato"><span class="tile-icon" aria-hidden="true">☰</span><div><strong>Extrato e recibos</strong><span class="sub">Vendas, estornos e comprovantes</span></div></a>
+    <a class="tile" href="/pos/saude"><span class="tile-icon" aria-hidden="true">♥</span><div><strong>Saúde financeira</strong><span class="sub">Score, taxas, tributos e recebíveis</span></div></a>
+    <a class="tile" href="/pos/extrato"><span class="tile-icon" aria-hidden="true">↺</span><div><strong>Estornos</strong><span class="sub">Cancelar ou devolver</span></div></a>
+    <a class="tile" href="/loja"><span class="tile-icon" aria-hidden="true">▣</span><div><strong>Loja demo</strong><span class="sub">Checkout Mercado Pago sandbox</span></div></a>
+</div>
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private FinancialHealth? _health;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _health = await Api.GetHealthAsync(_cts.Token);
+        }
+        catch (Exception exception) when (exception is PosApiException or HttpRequestException or TaskCanceledException)
+        {
+            _error = "Não foi possível carregar a saúde financeira. Verifique se a API está em execução.";
+        }
+    }
+
+    private async Task SeedAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Api.SeedDemoHistoryAsync(_cts.Token);
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is PosApiException or HttpRequestException)
+        {
+            _error = "Não foi possível carregar o histórico demo.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string HealthClass(HealthStatus status) => status switch
+    {
+        HealthStatus.Green => "health-green",
+        HealthStatus.Yellow => "health-yellow",
+        _ => "health-red"
+    };
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

@@ -1,0 +1,55 @@
+@using SplitPayment.Domain.Pos
+
+<article class="receipt-paper" aria-label="Comprovante de pagamento">
+    <h3>@Receipt.Title</h3>
+    <hr />
+    @Block(Receipt.Merchant)
+    @Block(Receipt.Transaction)
+    @Block(Receipt.Payment, "PAGAMENTO")
+    @Block(Receipt.Installments, "PARCELAS")
+    @Block(Receipt.Split, Receipt.Via == ReceiptVia.Merchant ? "SPLIT / REPASSE" : "TRIBUTOS (INFORMATIVO)")
+    @Block(Receipt.Refunds, "ESTORNOS")
+    @foreach (var notice in Receipt.Notices)
+    {
+        <div class="r-notice">@notice</div>
+    }
+    <hr />
+    <div class="r-footer">@Receipt.Footer</div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public Receipt Receipt { get; set; } = default!;
+
+    private RenderFragment Block(IReadOnlyList<ReceiptField> fields, string? heading = null) => builder =>
+    {
+        if (fields.Count == 0)
+        {
+            return;
+        }
+
+        var sequence = 0;
+        if (heading is not null)
+        {
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "r-heading");
+            builder.AddContent(sequence++, $"[ {heading} ]");
+            builder.CloseElement();
+        }
+
+        foreach (var field in fields)
+        {
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "r-line");
+            builder.OpenElement(sequence++, "span");
+            builder.AddContent(sequence++, field.Label);
+            builder.CloseElement();
+            builder.OpenElement(sequence++, "span");
+            builder.AddContent(sequence++, field.Value);
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.OpenElement(sequence++, "hr");
+        builder.CloseElement();
+    };
+}

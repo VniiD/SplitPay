@@ -1,0 +1,36 @@
+@inherits LayoutComponentBase
+
+<div class="pos-shell">
+    <header class="pos-topbar">
+        <a class="pos-brand" href="/" aria-label="SplitPay POS, início">
+            <span class="pos-brand-mark" aria-hidden="true">S</span>
+            <span>split<b>pay</b> <small>POS</small></span>
+        </a>
+        <nav class="pos-nav" aria-label="Navegação principal">
+            <NavLink href="/" Match="NavLinkMatch.All">Início</NavLink>
+            <NavLink href="/pos/venda">Vender</NavLink>
+            <NavLink href="/pos/extrato">Extrato</NavLink>
+            <NavLink href="/pos/saude">Saúde financeira</NavLink>
+            <NavLink href="/loja">Loja demo</NavLink>
+        </nav>
+        <div class="pos-top-actions">
+            <span class="pos-badge">SIMULAÇÃO</span>
+            <button type="button" class="theme-toggle" data-theme-toggle aria-label="Alternar tema claro/escuro" title="Alternar tema">
+                <span class="icon-moon" aria-hidden="true">☾</span>
+                <span class="icon-sun" aria-hidden="true">☀</span>
+            </button>
+        </div>
+    </header>
+    <main class="pos-main">
+        @Body
+    </main>
+    <footer class="pos-footer">
+        Ambiente de demonstração. Nenhum pagamento real, recolhimento tributário ou documento fiscal é emitido.
+    </footer>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss">Fechar</span>
+</div>

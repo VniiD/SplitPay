@@ -1,0 +1,105 @@
+@page "/pos/extrato"
+@layout PosLayout
+@inject PosApi Api
+@implements IDisposable
+
+<PageTitle>SplitPay POS | Extrato</PageTitle>
+
+<h1>Extrato de vendas</h1>
+@if (_error is not null)
+{
+    <div class="alert mt" role="alert">@_error</div>
+}
+<div class="pos-card mt">
+    @if (_sales is null)
+    {
+        <p class="note">Carregando…</p>
+    }
+    else if (_sales.Count == 0)
+    {
+        <p class="note">Nenhuma venda ainda. <a class="link-accent" href="/pos/venda">Fazer a primeira venda</a>.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr><th>#</th><th>Data</th><th>Forma</th><th>Situação</th><th class="num">Valor</th><th class="num">Líquido lojista</th><th class="num">Estornado</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var sale in _sales)
+                    {
+                        <tr>
+                            <td>@sale.Sequence.ToString("000000")</td>
+                            <td>@sale.CreatedAt.ToOffset(TimeSpan.FromHours(-3)).ToString("dd/MM HH:mm")</td>
+                            <td>@sale.MethodLabel</td>
+                            <td><span class="status status-@sale.Status">@sale.Status</span></td>
+                            <td class="num">@sale.Gross.Display</td>
+                            <td class="num">@sale.Split.MerchantNet.Display</td>
+                            <td class="num">@sale.Refunded.Display</td>
+                            <td class="num">
+                                <a class="chip" href="/pos/recibo/@sale.Id">Recibo</a>
+                                @if (sale.Status == "Captured" && sale.Method != "Pix" && sale.Refunds.Count == 0 && IsToday(sale))
+                                {
+                                    <button type="button" class="chip" @onclick="() => CancelAsync(sale.Id)">Cancelar</button>
+                                }
+                                @if (sale.Status is "Captured" or "PartiallyRefunded")
+                                {
+                                    <button type="button" class="chip" @onclick="() => RefundAsync(sale)">Estornar saldo</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private List<SaleDto>? _sales;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private static bool IsToday(SaleDto sale) =>
+        sale.CreatedAt.ToOffset(TimeSpan.FromHours(-3)).Date == DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(-3)).Date;
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _sales = await Api.ListSalesAsync(_cts.Token);
+        }
+        catch (Exception exception) when (exception is PosApiException or HttpRequestException or TaskCanceledException)
+        {
+            _error = "Não foi possível carregar o extrato.";
+        }
+    }
+
+    private Task CancelAsync(Guid id) => RunAsync(() => Api.CancelAsync(id, _cts.Token));
+
+    private Task RefundAsync(SaleDto sale) =>
+        RunAsync(() => Api.RefundAsync(sale.Id, sale.Gross.Cents - sale.Refunded.Cents, _cts.Token));
+
+    private async Task RunAsync(Func<Task<SaleDto>> action)
+    {
+        _error = null;
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        catch (PosApiException exception)
+        {
+            _error = exception.Message;
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

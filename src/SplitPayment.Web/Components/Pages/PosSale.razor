@@ -1,0 +1,417 @@
+@page "/pos/venda"
+@layout PosLayout
+@using System.Globalization
+@using QRCoder
+@inject PosApi Api
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>SplitPay POS | Nova venda</PageTitle>
+
+@if (_sale is null)
+{
+    <h1>Nova venda</h1>
+    <div class="grid-2 mt">
+        <section class="pos-card" aria-label="Dados da cobrança">
+            <div class="field">
+                <label for="amount">Valor da venda</label>
+                <input id="amount" class="amount-input" inputmode="decimal" autocomplete="off" placeholder="0,00"
+                       value="@_amountText" @onchange="OnAmountChanged" />
+            </div>
+            <div class="chips" aria-label="Valores rápidos">
+                @foreach (var quick in new[] { 10m, 25m, 50m, 100m, 250m, 1000m })
+                {
+                    <button type="button" class="chip" @onclick="() => SetAmount(quick)">@quick.ToString("C0", PtBr)</button>
+                }
+            </div>
+
+            <div class="tiles" role="radiogroup" aria-label="Forma de pagamento">
+                @foreach (var option in Methods)
+                {
+                    <button type="button" role="radio" aria-checked="@(_method == option.Method)"
+                            class="tile compact @(_method == option.Method ? "is-selected" : null)"
+                            @onclick="() => SelectMethod(option.Method)">
+                        <strong>@option.Label</strong><span class="sub">@option.Hint</span>
+                    </button>
+                }
+            </div>
+
+            @if (_method == PaymentMethod.Credit)
+            {
+                <div class="field mt">
+                    <label for="installments">Parcelas</label>
+                    <select id="installments" value="@_installments" @onchange="OnInstallmentsChanged">
+                        @for (var number = 1; number <= 12; number++)
+                        {
+                            <option value="@number">@(number == 1 ? "À vista" : $"{number}x")</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (_method != PaymentMethod.Pix)
+            {
+                <div class="grid-3 mt">
+                    <div class="field">
+                        <label for="brand">Bandeira</label>
+                        <select id="brand" @bind="_brand">
+                            @foreach (var brand in Brands(_method))
+                            {
+                                <option value="@brand">@brand</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="last4">Final do cartão (4 dígitos)</label>
+                        <input id="last4" maxlength="4" inputmode="numeric" @bind="_last4" />
+                    </div>
+                    <div class="field">
+                        <label for="entry">Captura</label>
+                        <select id="entry" @bind="_entryMode">
+                            <option value="@CardEntryMode.Contactless">Aproximação</option>
+                            <option value="@CardEntryMode.ChipAndPin">Chip e senha</option>
+                            <option value="@CardEntryMode.MagneticStripe">Tarja</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="outcome">Simulador do emissor</label>
+                    <select id="outcome" @bind="_outcome">
+                        <option value="@SimulatedOutcome.Approve">Aprovar</option>
+                        <option value="@SimulatedOutcome.InsufficientFunds">Negar: saldo insuficiente</option>
+                        <option value="@SimulatedOutcome.DoNotHonor">Negar: não autorizada</option>
+                        <option value="@SimulatedOutcome.ExpiredCard">Negar: cartão vencido</option>
+                    </select>
+                </div>
+            }
+
+            <details class="mt">
+                <summary>Split avançado (tributos e recebedor)</summary>
+                <div class="field mt">
+                    <label for="taxmode">Tratamento de IBS/CBS</label>
+                    <select id="taxmode" @bind="_taxMode">
+                        <option value="@TaxMode.Informative2026">2026: informativo (0,1% IBS + 0,9% CBS, não retido)</option>
+                        <option value="@TaxMode.SimulatedRetention">Simular retenção no split (IBS 17,7% + CBS 8,8%)</option>
+                    </select>
+                </div>
+                <div class="grid-3">
+                    <div class="field">
+                        <label for="rname">Recebedor adicional (opcional)</label>
+                        <input id="rname" maxlength="60" placeholder="Ex.: Fornecedor X" @bind="_recipientName" />
+                    </div>
+                    <div class="field">
+                        <label for="rpct">Percentual do recebedor (%)</label>
+                        <input id="rpct" inputmode="decimal" @bind="_recipientPercent" />
+                    </div>
+                </div>
+            </details>
+        </section>
+
+        <section class="pos-card" aria-live="polite" aria-label="Prévia do split">
+            <h2>Prévia do split</h2>
+            @if (_error is not null)
+            {
+                <div class="alert" role="alert">@_error</div>
+            }
+            @if (_preview is null)
+            {
+                <p class="note">Informe o valor para ver como o pagamento será dividido.</p>
+            }
+            else
+            {
+                <p><strong>@_preview.MethodLabel</strong></p>
+                <SplitBreakdown Split="_preview.Split" />
+                @if (_preview.Receivables.Count > 0)
+                {
+                    <h2 class="mt">Recebíveis do lojista</h2>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead><tr><th>Parcela</th><th>Vencimento</th><th class="num">Líquido</th></tr></thead>
+                            <tbody>
+                                @foreach (var item in _preview.Receivables)
+                                {
+                                    <tr><td>@item.Number/@item.Total</td><td>@item.DueDate.ToString("dd/MM/yyyy")</td><td class="num">@item.Net.Display</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            <button type="button" class="btn block mt" disabled="@(_preview is null || _busy)" @onclick="ChargeAsync">
+                @(_busy ? "Processando…" : _method == PaymentMethod.Pix ? "Gerar QR Code Pix" : "Cobrar")
+            </button>
+        </section>
+    </div>
+}
+else
+{
+    <h1>@ResultTitle()</h1>
+    <div class="grid-2 mt">
+        <section class="pos-card" aria-live="polite">
+            <span class="status status-@_sale.Status">@StatusLabel(_sale.Status)</span>
+            @if (_error is not null)
+            {
+                <div class="alert mt" role="alert">@_error</div>
+            }
+            @if (_sale.Status == "PendingPayment" && _sale.Pix is not null)
+            {
+                <div class="qr-box mt">
+                    <img alt="QR Code Pix para @_sale.Gross.Display" src="@QrDataUri(_sale.Pix.CopyAndPaste)" />
+                    <strong>@_sale.Gross.Display</strong>
+                    <div class="qr-code-text">@_sale.Pix.CopyAndPaste</div>
+                    <div class="btn-row">
+                        <button type="button" class="btn secondary" data-copy="@_sale.Pix.CopyAndPaste">Copiar código</button>
+                        <button type="button" class="btn" disabled="@_busy" @onclick="ConfirmPixAsync">Simular pagamento do cliente</button>
+                    </div>
+                    <small class="note">O QR Code é um BR Code Pix válido (CRC16) com chave de demonstração. Expira em 15 minutos.</small>
+                </div>
+            }
+            else if (_sale.Status == "Declined")
+            {
+                <p class="mt"><strong>@_sale.DeclineReason</strong></p>
+                <p class="note">Nenhum valor foi cobrado. Tente outro cartão ou outra forma de pagamento.</p>
+            }
+            else
+            {
+                <h2 class="mt">Distribuição do valor</h2>
+                <SplitBreakdown Split="_sale.Split" />
+            }
+            <div class="btn-row mt no-print">
+                <button type="button" class="btn" @onclick="NewSale">Nova venda</button>
+                <a class="btn secondary" href="/pos/recibo/@_sale.Id">Abrir recibo</a>
+                <button type="button" class="btn secondary" onclick="window.print()">Imprimir</button>
+            </div>
+        </section>
+        <section class="stack">
+            <div class="btn-row no-print" role="tablist" aria-label="Via do comprovante">
+                <button type="button" class="chip @(_via == ReceiptVia.Customer ? "is-selected" : null)" @onclick="() => ShowViaAsync(ReceiptVia.Customer)">Via do cliente</button>
+                <button type="button" class="chip @(_via == ReceiptVia.Merchant ? "is-selected" : null)" @onclick="() => ShowViaAsync(ReceiptVia.Merchant)">Via do estabelecimento</button>
+            </div>
+            @if (_receipt is not null)
+            {
+                <ReceiptView Receipt="_receipt" />
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private static readonly (PaymentMethod Method, string Label, string Hint)[] Methods =
+    [
+        (PaymentMethod.Pix, "Pix", "D+0"),
+        (PaymentMethod.Credit, "Crédito", "D+30"),
+        (PaymentMethod.Debit, "Débito", "D+1"),
+        (PaymentMethod.MealVoucher, "Vale-refeição", "VR"),
+        (PaymentMethod.FoodVoucher, "Vale-alimentação", "VA")
+    ];
+
+    private readonly CancellationTokenSource _cts = new();
+    private string _amountText = string.Empty;
+    private long _amountCents;
+    private PaymentMethod _method = PaymentMethod.Credit;
+    private int _installments = 1;
+    private string _brand = "VISA";
+    private string _last4 = "4242";
+    private CardEntryMode _entryMode = CardEntryMode.Contactless;
+    private SimulatedOutcome _outcome = SimulatedOutcome.Approve;
+    private TaxMode _taxMode = TaxMode.Informative2026;
+    private string _recipientName = string.Empty;
+    private string _recipientPercent = "10";
+    private PreviewResponse? _preview;
+    private SaleDto? _sale;
+    private Receipt? _receipt;
+    private ReceiptVia _via = ReceiptVia.Customer;
+    private string? _error;
+    private bool _busy;
+    private string _idempotencyKey = NewKey();
+    private int _previewVersion;
+
+    [SupplyParameterFromQuery(Name = "metodo")] public string? MethodQuery { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Enum.TryParse<PaymentMethod>(MethodQuery, true, out var parsed) && Enum.IsDefined(parsed))
+        {
+            _method = parsed;
+            _brand = Brands(parsed)[0];
+        }
+    }
+
+    private static string NewKey() => $"web-{Guid.NewGuid():N}";
+
+    private static string[] Brands(PaymentMethod method) => method is PaymentMethod.MealVoucher or PaymentMethod.FoodVoucher
+        ? ["ALELO", "SODEXO", "VR", "TICKET"]
+        : ["VISA", "MASTERCARD", "ELO", "HIPERCARD", "AMEX"];
+
+    private async Task OnAmountChanged(ChangeEventArgs args)
+    {
+        _amountText = args.Value?.ToString() ?? string.Empty;
+        var normalized = _amountText.Replace("R$", string.Empty).Trim();
+        if (!decimal.TryParse(normalized, NumberStyles.Number, PtBr, out var value) || value <= 0 || decimal.Round(value, 2) != value)
+        {
+            _amountCents = 0;
+            _preview = null;
+            _error = string.IsNullOrWhiteSpace(_amountText) ? null : "Informe um valor válido, por exemplo 49,90.";
+            return;
+        }
+
+        _amountCents = (long)(value * 100m);
+        await RefreshPreviewAsync();
+    }
+
+    private async Task SetAmount(decimal value)
+    {
+        _amountText = value.ToString("N2", PtBr);
+        _amountCents = (long)(value * 100m);
+        await RefreshPreviewAsync();
+    }
+
+    private async Task SelectMethod(PaymentMethod method)
+    {
+        _method = method;
+        _brand = Brands(method)[0];
+        _installments = 1;
+        await RefreshPreviewAsync();
+    }
+
+    private async Task OnInstallmentsChanged(ChangeEventArgs args)
+    {
+        _installments = int.TryParse(args.Value?.ToString(), out var value) ? value : 1;
+        await RefreshPreviewAsync();
+    }
+
+    private SaleRequest BuildRequest()
+    {
+        var recipients = new List<RecipientRequest>();
+        if (!string.IsNullOrWhiteSpace(_recipientName) &&
+            decimal.TryParse(_recipientPercent.Replace("%", string.Empty), NumberStyles.Number, PtBr, out var percent) &&
+            percent > 0 && percent <= 100)
+        {
+            recipients.Add(new RecipientRequest(_recipientName.Trim(), null, (int)Math.Round(percent * 100m)));
+        }
+
+        return new SaleRequest(
+            null, null, _method, _amountCents, _installments,
+            _method == PaymentMethod.Pix ? null : new CardRequest(_brand, _last4, _entryMode),
+            _outcome, _taxMode, recipients);
+    }
+
+    private async Task RefreshPreviewAsync()
+    {
+        if (_amountCents <= 0)
+        {
+            _preview = null;
+            return;
+        }
+
+        var version = ++_previewVersion;
+        try
+        {
+            var preview = await Api.PreviewAsync(BuildRequest(), _cts.Token);
+            if (version == _previewVersion)
+            {
+                _preview = preview;
+                _error = null;
+            }
+        }
+        catch (PosApiException exception)
+        {
+            _preview = null;
+            _error = exception.Message;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            _preview = null;
+            _error = "API indisponível no momento.";
+        }
+    }
+
+    private async Task ChargeAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _sale = await Api.CreateSaleAsync(BuildRequest(), _idempotencyKey, _cts.Token);
+            _via = ReceiptVia.Customer;
+            _receipt = await Api.GetReceiptAsync(_sale.Id, _via, _cts.Token);
+        }
+        catch (PosApiException exception)
+        {
+            _error = exception.Message;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            _error = "API indisponível no momento.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ConfirmPixAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _sale = await Api.ConfirmPixAsync(_sale!.Id, _cts.Token);
+            _receipt = await Api.GetReceiptAsync(_sale.Id, _via, _cts.Token);
+        }
+        catch (PosApiException exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ShowViaAsync(ReceiptVia via)
+    {
+        _via = via;
+        _receipt = await Api.GetReceiptAsync(_sale!.Id, via, _cts.Token);
+    }
+
+    private void NewSale()
+    {
+        _sale = null;
+        _receipt = null;
+        _idempotencyKey = NewKey();
+        _error = null;
+    }
+
+    private string ResultTitle() => _sale!.Status switch
+    {
+        "Captured" => "Pagamento aprovado",
+        "Declined" => "Pagamento negado",
+        "PendingPayment" => "Aguardando pagamento Pix",
+        _ => "Venda"
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Captured" => "Aprovada",
+        "Declined" => "Negada",
+        "PendingPayment" => "Aguardando pagamento",
+        "Expired" => "Expirada",
+        _ => status
+    };
+
+    private static string QrDataUri(string payload)
+    {
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);
+        var svg = new SvgQRCode(data).GetGraphic(6, "#000000", "#ffffff", drawQuietZones: true);
+        return "data:image/svg+xml;base64," + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg));
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

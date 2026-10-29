@@ -1,0 +1,133 @@
+@page "/pos/saude"
+@layout PosLayout
+@inject PosApi Api
+@implements IDisposable
+
+<PageTitle>SplitPay POS | Saúde financeira</PageTitle>
+
+<h1>Saúde financeira</h1>
+@if (_error is not null)
+{
+    <div class="alert mt" role="alert">@_error</div>
+}
+else if (_health is null)
+{
+    <p class="note mt">Carregando…</p>
+}
+else
+{
+    <div class="grid-2 mt">
+        <section class="pos-card">
+            <div class="score-ring @HealthClass(_health.Status)" role="img" aria-label="Pontuação @_health.Score de 100">
+                <div>@_health.Score<small>de 100</small></div>
+            </div>
+            <p class="right-center"><span class="health-pill @HealthClass(_health.Status)">@_health.Headline</span></p>
+            @if (_health.Alerts.Count > 0)
+            {
+                <ul>
+                    @foreach (var alert in _health.Alerts)
+                    {
+                        <li>@alert</li>
+                    }
+                </ul>
+            }
+            @if (_health.InsufficientData)
+            {
+                <p class="note">
+                    Poucas vendas no mês para uma leitura confiável.
+                    <button type="button" class="chip" @onclick="SeedAsync">Carregar histórico demo</button>
+                </p>
+            }
+        </section>
+        <section class="grid-3">
+            <div class="kpi"><small>Faturamento hoje</small><strong>@_health.GrossToday</strong></div>
+            <div class="kpi"><small>Faturamento no mês</small><strong>@_health.GrossMonth</strong></div>
+            <div class="kpi"><small>Líquido do lojista</small><strong>@_health.NetMonth</strong></div>
+            <div class="kpi"><small>Taxas pagas (MDR)</small><strong>@_health.FeesMonth</strong></div>
+            <div class="kpi"><small>Tributos retidos</small><strong>@_health.TaxRetainedMonth</strong></div>
+            <div class="kpi"><small>Tributos informativos</small><strong>@_health.TaxInformationalMonth</strong></div>
+            <div class="kpi"><small>Ticket médio</small><strong>@_health.AverageTicket</strong></div>
+            <div class="kpi"><small>Custo efetivo</small><strong>@Percent(_health.EffectiveCostBasisPoints)</strong></div>
+            <div class="kpi"><small>Taxa de negação</small><strong>@Percent(_health.DeclineRateBasisPoints)</strong></div>
+        </section>
+    </div>
+
+    <div class="grid-2 mt">
+        <section class="pos-card">
+            <h2>Recebíveis futuros</h2>
+            <div class="grid-3">
+                <div class="kpi"><small>Próx. 7 dias</small><strong>@_health.ReceivablesNext7Days</strong></div>
+                <div class="kpi"><small>Próx. 30 dias</small><strong>@_health.ReceivablesNext30Days</strong></div>
+                <div class="kpi"><small>Total a receber</small><strong>@_health.ReceivablesTotal</strong></div>
+            </div>
+            @if (_health.Forecast.Count > 0)
+            {
+                <svg class="spark-svg mt" viewBox="0 0 @(_health.Forecast.Count * 12) 100" preserveAspectRatio="none" role="img" aria-label="Recebíveis por data de vencimento">
+                    @{ var max = Math.Max(1, _health.Forecast.Max(item => item.Net.Cents)); }
+                    @for (var index = 0; index < _health.Forecast.Count; index++)
+                    {
+                        var height = Math.Max(2.0, 100.0 * _health.Forecast[index].Net.Cents / max);
+                        <rect x="@(index * 12 + 1)" y="@((100 - height).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))" width="10" height="@height.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)">
+                            <title>@_health.Forecast[index].Date.ToString("dd/MM") — @_health.Forecast[index].Net</title>
+                        </rect>
+                    }
+                </svg>
+            }
+        </section>
+        <section class="pos-card">
+            <h2>Mix de pagamento (mês)</h2>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Forma</th><th class="num">Vendas</th><th class="num">Valor</th><th class="num">Share</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in _health.Mix)
+                        {
+                            <tr><td>@item.Method.Label(1)</td><td class="num">@item.Count</td><td class="num">@item.Gross</td><td class="num">@Percent(item.ShareBasisPoints)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private FinancialHealth? _health;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _health = await Api.GetHealthAsync(_cts.Token);
+        }
+        catch (Exception exception) when (exception is PosApiException or HttpRequestException or TaskCanceledException)
+        {
+            _error = "Não foi possível carregar os indicadores.";
+        }
+    }
+
+    private async Task SeedAsync()
+    {
+        await Api.SeedDemoHistoryAsync(_cts.Token);
+        await LoadAsync();
+    }
+
+    private static string Percent(int basisPoints) => $"{basisPoints / 100m:0.00}%";
+
+    private static string HealthClass(HealthStatus status) => status switch
+    {
+        HealthStatus.Green => "health-green",
+        HealthStatus.Yellow => "health-yellow",
+        _ => "health-red"
+    };
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}
