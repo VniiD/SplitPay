@@ -130,6 +130,8 @@ Testes: `dotnet test SplitPayment.sln` (os testes do POS não exigem Docker).
 
 ## Maturidade e limites conhecidos
 
+**Validado em Docker Compose:** a stack completa (SQL Server, Kafka, MongoDB, API, Engine Worker, CGIBS Gateway, storefront) sobe saudável; uma venda POS em crédito 3x foi capturada, gravada no outbox, publicada no Kafka (`Published`) e consumida pelo Engine Worker (`Split persisted for invoice …`).
+
 **Já sólido:** domínio puro e coberto por testes (incluindo teste de propriedade do split), aritmética em centavos, idempotência HTTP, máquina de estados, BR Code Pix com CRC validado, PAN nunca armazenado, rate limit, autenticação por chave com comparação em tempo constante, CSP restritiva no front, CI e Docker.
 
 **Para levar a produção (não implementado):**
@@ -141,7 +143,7 @@ Testes: `dotnet test SplitPayment.sln` (os testes do POS não exigem Docker).
 5. **Fiscal.** Sem emissão de NFC-e/NF-e e sem classificação fiscal (NCM, CST, cClassTrib). O split de tributos é uma simulação.
 6. **Antecipação de recebíveis, multi-lojista e multi-terminal** (há um lojista e um terminal de demonstração).
 7. **Observabilidade.** Faltam OpenTelemetry, métricas e alertas.
-8. **Testes.** Faltam testes e2e do front, de carga e do fluxo completo com Kafka no CI para vendas POS.
+8. **Testes.** Faltam testes e2e do front, de carga e a automação no CI do fluxo POS com Kafka (verificado manualmente no compose).
 
 ---
 
