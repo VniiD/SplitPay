@@ -4,6 +4,8 @@
 
 Simulador de **maquininha de pagamento brasileira** com **split payment** aplicado a cada venda, **recibo (comprovante) completo** e um **micro gestor financeiro** que devolve ao terminal a saúde financeira do comércio.
 
+> **Projeto base:** [split-payment-platform](https://github.com/VniiD/split-payment-platform) — a fundação (pipeline de eventos, checkout demo, Mercado Pago sandbox) que originou este projeto.
+>
 > **Origem.** Este repositório é a junção de dois projetos: o **SplitPay** (plataforma de split payment com API .NET, Kafka, MongoDB, SQL Server e storefront Blazor, documentada na seção [Plataforma base](#plataforma-base-split-payment-platform-splitpay)) e o novo módulo **POS**, que o transforma em um sistema de pagamento de ponta a ponta. As vendas capturadas no POS alimentam o mesmo pipeline *outbox → Kafka → Engine → ledger CG-IBS* do SplitPay.
 >
 > **Simulação técnica.** Não realiza pagamentos reais, recolhimento tributário, liquidação nem emissão de documento fiscal. Não é um adquirente, não é certificado (PCI-PTS, EMV, ABECS) e as taxas são ilustrativas. Os recibos trazem o aviso "sem valor fiscal".
