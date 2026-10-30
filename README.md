@@ -20,8 +20,9 @@ Tema escuro (grafite com contornos verdes) e tema claro, com tiles grandes para 
 |---|---|
 | ![Início, tema escuro](docs/screenshots/01-home-dark.png)<br>**Início** — tiles por forma de pagamento e resumo de saúde financeira | ![Início, tema claro](docs/screenshots/07-home-light.png)<br>**Início no tema claro** |
 | ![Venda no crédito com prévia do split](docs/screenshots/02-venda-credito-split.png)<br>**Nova venda** — crédito 3x com prévia do split | ![Recibo e distribuição do valor](docs/screenshots/03-recibo.png)<br>**Aprovação e recibo** — split e comprovante de 40 colunas |
-| ![Pix com QR Code](docs/screenshots/04-pix-qrcode.png)<br>**Pix** — BR Code com copia e cola | ![Extrato de vendas](docs/screenshots/06-extrato-dark.png)<br>**Extrato** — recibos, cancelamento e estorno |
-| ![Saúde financeira, tema escuro](docs/screenshots/05-saude-dark.png)<br>**Saúde financeira** — score, recebíveis e mix de pagamento | ![Saúde financeira, tema claro](docs/screenshots/08-saude-light.png)<br>**Saúde financeira no tema claro** |
+| ![Recibo da via do estabelecimento com valor a receber](docs/screenshots/09-recibo-estabelecimento.png)<br>**Via do estabelecimento** — descontos do split e valor líquido a receber | ![Extrato de vendas](docs/screenshots/06-extrato-dark.png)<br>**Extrato** — recibos, cancelamento e estorno |
+| ![Pix com QR Code](docs/screenshots/04-pix-qrcode.png)<br>**Pix** — BR Code com copia e cola | ![Saúde financeira, tema escuro](docs/screenshots/05-saude-dark.png)<br>**Saúde financeira** — score, recebíveis e mix de pagamento |
+| ![Saúde financeira, tema claro](docs/screenshots/08-saude-light.png)<br>**Saúde financeira no tema claro** | |
 
 *Os dados das capturas são de demonstração (histórico de 28 dias gerado pelo próprio sistema).*
 
@@ -100,7 +101,7 @@ O recibo segue o layout usual de comprovantes de maquininha no Brasil:
 - **Transação**: data e hora, identificador da venda, sequencial e situação.
 - **Pagamento**: operação (Pix, débito, crédito à vista ou parcelado, VR, VA), valor, bandeira, cartão mascarado (`**** **** **** 1234`), modo de captura, verificação por senha, **NSU**, **código de autorização** e resposta do emissor. Para Pix, chave mascarada, TxId, EndToEndId e pagador.
 - **Parcelas**: número, valor e vencimento.
-- **Via do cliente**: mostra apenas tributos informativos. **Via do estabelecimento**: mostra o split completo (taxa, tributos, recebedores e líquido).
+- **Via do cliente**: mostra apenas tributos informativos. **Via do estabelecimento**: mostra o split completo (taxa, tributos, recebedores e líquido) e a seção **VALOR A RECEBER**, que parte do valor da venda, lista cada desconto automático do split (taxa do adquirente, tributos retidos e repasses a fornecedores/recebedores) e termina no **líquido do estabelecimento**.
 - **Negada ou expirada**: título "TRANSAÇÃO NEGADA" ou "COBRANÇA PIX EXPIRADA" e aviso de que nenhum valor foi cobrado.
 - **Rodapé**: "SIMULAÇÃO PARA DEMONSTRAÇÃO - SEM VALOR FISCAL. Não substitui NFC-e/NF-e."
 
