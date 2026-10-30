@@ -2,11 +2,10 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY src/SplitPayment.Domain/SplitPayment.Domain.csproj src/SplitPayment.Domain/
 COPY src/SplitPayment.Web/SplitPayment.Web.csproj src/SplitPayment.Web/
-RUN dotnet restore src/SplitPayment.Web/SplitPayment.Web.csproj
 COPY src/SplitPayment.Domain/ src/SplitPayment.Domain/
 COPY src/SplitPayment.Web/ src/SplitPayment.Web/
 RUN dotnet publish src/SplitPayment.Web/SplitPayment.Web.csproj \
-    --configuration Release --no-restore --output /app/publish /p:UseAppHost=false
+    --configuration Release --output /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
