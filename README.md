@@ -12,6 +12,19 @@ Simulador de **maquininha de pagamento brasileira** com **split payment** aplica
 
 **Autor:** [VniiD](https://github.com/VniiD) · **Licença:** [GNU GPL-3.0-only](LICENSE)
 
+## Telas
+
+Tema escuro (grafite com contornos verdes) e tema claro, com tiles grandes para cada função.
+
+| | |
+|---|---|
+| ![Início, tema escuro](docs/screenshots/01-home-dark.png)<br>**Início** — tiles por forma de pagamento e resumo de saúde financeira | ![Início, tema claro](docs/screenshots/07-home-light.png)<br>**Início no tema claro** |
+| ![Venda no crédito com prévia do split](docs/screenshots/02-venda-credito-split.png)<br>**Nova venda** — crédito 3x com prévia do split | ![Recibo e distribuição do valor](docs/screenshots/03-recibo.png)<br>**Aprovação e recibo** — split e comprovante de 40 colunas |
+| ![Pix com QR Code](docs/screenshots/04-pix-qrcode.png)<br>**Pix** — BR Code com copia e cola | ![Extrato de vendas](docs/screenshots/06-extrato-dark.png)<br>**Extrato** — recibos, cancelamento e estorno |
+| ![Saúde financeira, tema escuro](docs/screenshots/05-saude-dark.png)<br>**Saúde financeira** — score, recebíveis e mix de pagamento | ![Saúde financeira, tema claro](docs/screenshots/08-saude-light.png)<br>**Saúde financeira no tema claro** |
+
+*Os dados das capturas são de demonstração (histórico de 28 dias gerado pelo próprio sistema).*
+
 ## O que o POS entrega
 
 | Capacidade | Como funciona |
