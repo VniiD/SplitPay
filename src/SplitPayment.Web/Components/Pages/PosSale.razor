@@ -392,14 +392,7 @@ else
         _ => "Venda"
     };
 
-    private static string StatusLabel(string status) => status switch
-    {
-        "Captured" => "Aprovada",
-        "Declined" => "Negada",
-        "PendingPayment" => "Aguardando pagamento",
-        "Expired" => "Expirada",
-        _ => status
-    };
+    private static string StatusLabel(string status) => PosStatus.Label(status);
 
     private static string QrDataUri(string payload)
     {

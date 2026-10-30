@@ -33,7 +33,7 @@
                             <td>@sale.Sequence.ToString("000000")</td>
                             <td>@sale.CreatedAt.ToOffset(TimeSpan.FromHours(-3)).ToString("dd/MM HH:mm")</td>
                             <td>@sale.MethodLabel</td>
-                            <td><span class="status status-@sale.Status">@sale.Status</span></td>
+                            <td><span class="status status-@sale.Status">@PosStatus.Label(sale.Status)</span></td>
                             <td class="num">@sale.Gross.Display</td>
                             <td class="num">@sale.Split.MerchantNet.Display</td>
                             <td class="num">@sale.Refunded.Display</td>
@@ -45,7 +45,7 @@
                                 }
                                 @if (sale.Status is "Captured" or "PartiallyRefunded")
                                 {
-                                    <button type="button" class="chip" @onclick="() => RefundAsync(sale)">Estornar saldo</button>
+                                    <button type="button" class="chip" @onclick="() => RefundAsync(sale)">Estornar</button>
                                 }
                             </td>
                         </tr>
