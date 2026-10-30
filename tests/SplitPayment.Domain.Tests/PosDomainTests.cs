@@ -207,6 +207,20 @@ public sealed class PosDomainTests
     }
 
     [Fact]
+    public void Receipt_MerchantCopyShowsNetAmountAfterSplitAndCustomerCopyDoesNot()
+    {
+        var sale = CapturedCardSale(PaymentMethod.Credit);
+        var customer = ReceiptBuilder.Build(sale, DemoMerchants.Demo, DemoMerchants.DemoTerminal, ReceiptVia.Customer, TimeSpan.FromHours(-3));
+        var merchant = ReceiptBuilder.Build(sale, DemoMerchants.Demo, DemoMerchants.DemoTerminal, ReceiptVia.Merchant, TimeSpan.FromHours(-3));
+        var text = ReceiptBuilder.RenderText(merchant);
+
+        Assert.Empty(customer.Settlement);
+        Assert.Contains(merchant.Settlement, field => field.Label == "LÍQUIDO ESTABELECIMENTO" && field.Value == sale.Split.MerchantNet.ToString());
+        Assert.Contains("VALOR A RECEBER", text, StringComparison.Ordinal);
+        Assert.All(text.Split('\n'), line => Assert.True(line.TrimEnd('\r').Length <= 40));
+    }
+
+    [Fact]
     public void Receipt_DeclinedShowsNoChargeNotice()
     {
         var sale = NewSale(PaymentMethod.Debit, 1);

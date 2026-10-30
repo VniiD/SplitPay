@@ -8,6 +8,7 @@
     @Block(Receipt.Payment, "PAGAMENTO")
     @Block(Receipt.Installments, "PARCELAS")
     @Block(Receipt.Split, Receipt.Via == ReceiptVia.Merchant ? "SPLIT / REPASSE" : "TRIBUTOS (INFORMATIVO)")
+    @Block(Receipt.Settlement, "VALOR A RECEBER")
     @Block(Receipt.Refunds, "ESTORNOS")
     @foreach (var notice in Receipt.Notices)
     {

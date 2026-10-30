@@ -20,6 +20,7 @@ public sealed record Receipt(
     IReadOnlyList<ReceiptField> Payment,
     IReadOnlyList<ReceiptField> Installments,
     IReadOnlyList<ReceiptField> Split,
+    IReadOnlyList<ReceiptField> Settlement,
     IReadOnlyList<ReceiptField> Refunds,
     IReadOnlyList<string> Notices,
     string Footer);
@@ -108,6 +109,7 @@ public static class ReceiptBuilder
             : [];
 
         var split = via == ReceiptVia.Merchant ? SplitFields(sale) : TaxFieldsOnly(sale);
+        var settlement = via == ReceiptVia.Merchant ? SettlementFields(sale) : [];
         var refunds = sale.Refunds
             .Select(refund => new ReceiptField(refund.At.ToOffset(utcOffset).ToString("dd/MM/yyyy HH:mm", Culture), $"{refund.Amount} - {refund.Reason}"))
             .ToList();
@@ -134,6 +136,7 @@ public static class ReceiptBuilder
             payment,
             installmentFields,
             split,
+            settlement,
             refunds,
             notices,
             "Guarde este comprovante. Dúvidas: SAC do estabelecimento.");
@@ -151,6 +154,7 @@ public static class ReceiptBuilder
         Section(builder, "PAGAMENTO", receipt.Payment, width);
         Section(builder, "PARCELAS", receipt.Installments, width);
         Section(builder, receipt.Via == ReceiptVia.Merchant ? "SPLIT / REPASSE" : "TRIBUTOS (INFORMATIVO)", receipt.Split, width);
+        Section(builder, "VALOR A RECEBER", receipt.Settlement, width);
         Section(builder, "ESTORNOS", receipt.Refunds, width);
         foreach (var notice in receipt.Notices)
         {
@@ -174,6 +178,29 @@ public static class ReceiptBuilder
             fields.Add(new("*", "Informativo (fase de teste 2026), não retido"));
         }
 
+        return fields;
+    }
+
+    private static List<ReceiptField> SettlementFields(Sale sale)
+    {
+        if (sale.Status is SaleStatus.Declined or SaleStatus.Expired or SaleStatus.PendingPayment)
+        {
+            return [];
+        }
+
+        var split = sale.Split;
+        var fields = new List<ReceiptField> { new("Valor da venda", split.Gross.ToString()) };
+        foreach (var line in split.Lines.Where(line => line.Retained && line.Kind is not (SplitLineKind.Merchant or SplitLineKind.Recipient)))
+        {
+            fields.Add(new($"(-) {line.Beneficiary}", line.Amount.ToString()));
+        }
+
+        foreach (var line in split.Lines.Where(line => line.Kind == SplitLineKind.Recipient))
+        {
+            fields.Add(new($"(-) Repasse {line.Beneficiary}", line.Amount.ToString()));
+        }
+
+        fields.Add(new("LÍQUIDO ESTABELECIMENTO", split.MerchantNet.ToString()));
         return fields;
     }
 
